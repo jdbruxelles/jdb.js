@@ -1,5 +1,5 @@
 /*!
- * JdB.js v1.24.0 - https://www.we-rl.xyz/ depend to
+ * JdB.js v1.24.1 - https://www.we-rl.xyz/ depend to
  * jQuery v3.2.1+ - https://jquery.com/
  * 
  * Includes Sizzle.js - https://sizzlejs.com/
@@ -7,7 +7,7 @@
  * Copyright JS Foundation and other contributors
  * Released under the MIT license - https://jquery.org/license
  *
- * Date: 2018-07-09T12:47Z - JdB.js
+ * Date: 2018-07-28T15:00Z - JdB.js
  * Date: 2017-03-20T18:59Z - jQuery
  */
 /*!
@@ -55,7 +55,7 @@
   var jdb = window.jdb = {
     check: {
       jQuery: function() {
-        return jdb.typeOf(jQuery) === "function";
+        return "jQuery" in window || jdb.typeOf(jQuery) === "function";
       },
       localStorage: function() {
         return "localStorage" in window && window.localStorage !== null;
@@ -102,6 +102,7 @@
      * @public
      * @type {Function}
      * @param {string} filelink File(s) link(s).
+        The extension is optional for url.
      * @param {string} filetype Language of file: js or css.
      * @param {string} [javascript] If file is a javascript.
      * @param {Function} callback Callback function.
@@ -117,6 +118,7 @@
       for (i = 0; i < filength; i++) {
         if (filetype == "js") {
           // If file is a javascript file.
+          var ext = filelinks[i].substring(filelinks[i].lastIndexOf("/") + 1, filelinks[i].lastIndexOf("."));
           fileref = this.createElement("script");
           if (javascript) { 
             fileref.setAttribute("type", "text/javascript");
@@ -138,13 +140,22 @@
               }
             };
           }
-          fileref.setAttribute("src", filelinks[i]);
+          if (ext.indexOf("js") > -1) {
+            fileref.setAttribute("src", filelinks[i]);
+          } else {
+            fileref.setAttribute("src", filelinks[i] + ".js");
+          }
         } else if (filetype == "css") {
           // If file is a style sheet.
+          var ext = filelinks[i].substring(filelinks[i].lastIndexOf("/") + 1, filelinks[i].lastIndexOf("."));
           fileref = this.createElement("link");
           fileref.setAttribute("rel",  "stylesheet");
           fileref.setAttribute("type", "text/css");
-          fileref.setAttribute("href", filelinks[i]);
+          if (ext.indexOf("css") > -1) {
+            fileref.setAttribute("href", filelinks[i]);
+          } else {
+            fileref.setAttribute("href", filelinks[i] + ".css");
+          }
         }
         if (this.typeOf(fileref) !== "undefined") {
           this.head.appendChild(fileref);
@@ -175,10 +186,17 @@
      * @returns {Array} 
      */
     pushStringInArray: function (value) {
-      if (Array.isArray(arguments)) { return arguments; }
-      var arrayList = [];
+      var arr = arguments.length;
+      if (Array.isArray(arguments)) {
+        if (arr === 1) {
+          return arguments;
+        }
+      }
+      if (arr === 1) {
+        return value.split(" ");
+      }
+      var arrayList = [], i;
       if (arguments) {
-        var i, arr = arguments.length;
         for (i = 0; i < arr; i++) {
           arrayList.push(arguments[i]);
         }
@@ -720,13 +738,14 @@
      * @param {string} selector Selector.
      * @param {requestCallback} [callback] Callback.
      */
-    targetTo: function (selector, callback){
+    targetTo: function (selector, callback) {
       $("html, body").animate({ 
         scrollTop: $(selector).offset().top
-      }, "slow");
-      if (this.typeOf(callback) === "function") {
-        callback();
-      }
+      }, "slow", function() {
+        if (jdb.typeOf(callback) === "function") {
+          callback();
+        }
+      });
     },
 
     /**
@@ -734,13 +753,18 @@
      * @public
      * @type {Function}
      * @param {?(number|string)} [speed="slow"] Scroll speed.
+     * @param {requestCallback} [callback] Callback.
      * @returns {boolean}
      */
-    goUp: function (speed) {
+    goUp: function (speed, callback) {
       if (!speed) { speed = "slow"; }
       $("html, body").animate({
         scrollTop: 0
-      }, speed);
+      }, speed, function() {
+        if (jdb.typeOf(callback) === "function") {
+          callback();
+        }
+      });
       return false;
     },
 
@@ -772,6 +796,38 @@
       return $(selector).show();
     },
     
+    /**
+     * Listens to on events.
+     * @public
+     * @type {Function}
+     * @param {string} type Type of event.
+     * @param {(Object|string)} Element
+     * @param {fn} Function to call when event trigger.
+     */
+    addEvent: function (element, event, fn) {
+      element = this.typeOf(element) === "object" ?
+        element : document.querySelector(element);
+      "addEventListener" in window ?
+        element.addEventListener(event, fn, false) :
+        element.attachEvent("on" + event.toLowerCase(), fn);
+    },
+
+    /**
+     * Listens to multiple events.
+     * @public
+     * @type {Function}
+     * @param {string} type Type of event.
+     * @param {(Object|string)} Element
+     * @param {fn} Function to call when event trigger.
+     */
+    addMultipleEvent: function (element, events, fn) {
+      events = this.pushStringInArray(events);
+      var i, e_lenght = events.length;
+      for (var i = 0; i < e_lenght; i++) {
+        element.addEventListener(events[i], fn, false);
+      }
+    },
+
     /**
      * Add one or multiple style to selected element.
      * @public
@@ -808,7 +864,7 @@
       style.type = "text/css";
       this.head.appendChild(style);
       
-      if (style.styleSheet){
+      if (style.styleSheet) {
         style.styleSheet.cssText = css;
       } else {
         style.appendChild(document.createTextNode(css));
@@ -938,7 +994,7 @@
      * @param {string} selector Element class to filter.
      * @param {Object} filter Get the filter input value.
      */
-    filterHTML: function (id, selector, filter) {
+    filterHTML: function (id, selector, filter, nofound) {
       var a, b, c, i, ii, iii, hit, k;
       a = this.getElements(id);
       k = a.length;
@@ -960,6 +1016,11 @@
           if (hit == 1) { b[ii].style.display = "";
           } else { b[ii].style.display = "none"; }
         }
+      }
+      // A callback if there isn't matched result.
+      // Added in v2.24.1
+      if (this.typeOf(nofound) === "function") {
+        nofound(a.filter(":visible").length);
       }
     },
 
@@ -1146,8 +1207,9 @@
      * @param {requestCallback} [callback] Callback.
      * @param {*} [xml]
      * @param {*} [method]
+     * @param {Object} [headers]
      */
-    http: function (target, callback, xml, method) {
+    http: function (target, callback, xml, method, headers) {
       var httpObj;
       if (!method) { method = "GET"; }
       if (window.XMLHttpRequest) {
@@ -1158,6 +1220,11 @@
       if (httpObj) {
         if (callback) {
           httpObj.onreadystatechange = callback;
+        }
+        if (this.typeOf(headers) === "object") {
+          for (var header in headers) {
+            httpObj.setRequestHeader(header, headers[header]);
+          }
         }
         httpObj.open(method, target, true);
         httpObj.send(xml);
@@ -1177,7 +1244,7 @@
           z = att.toUpperCase();
           l = y.length;
       for (i = -1; i < l; i += 1) {
-        if (i == -1) {y[i] = x;}
+        if (i == -1) { y[i] = x; }
         if (y[i].getAttribute(z) !== null) {
           arrCount += 1; arr[arrCount] = y[i];
         }
@@ -1346,28 +1413,6 @@
         $parent.append(selector_.eq(shuffled_array[i]));
       }
     },
-
-    /**
-     * Count length of selected elements class
-     * by making it like a list
-     * @public
-     * @type {Function}
-     * @param {string} selector Selector
-     * @param {requestCallback} [callback] Callback
-     */
-    count: function (selector, callback) {
-      var $elLength, start = 1,
-          $el = $(selector);
-    
-      $el.each(function(){
-        $(this).append(" " + start++);
-      });
-      $elLength = $el.length;
-      console.log("The length of \"" + selector + "\" is " + $elLength);
-      if (this.typeOf(callback) === "function") {
-        callback($elLength);
-      } else { return $elLength; }
-    },
     
     /**
      * Copy value from a input or textarea element
@@ -1532,7 +1577,7 @@
       });
     },
 
-    version: "1.24.0"
+    version: "1.24.1"
   };
 
   // Check jQuery.
